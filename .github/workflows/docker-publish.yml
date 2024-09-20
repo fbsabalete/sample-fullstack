@@ -152,4 +152,4 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: 22
           script_stop: true
-          script: ~/pipelines/scripts/deploy.sh ${{github.event.repository.name}} ${{needs.push.outputs.image-tag}} ${{needs.push.outputs.env}}
+          script: ~/pipelines/scripts/deploy.sh ${{github.event.repository.name}} ${{needs.push-frontend.outputs.image-tag}} ${{needs.push-frontend.outputs.env}}
