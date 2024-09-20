@@ -130,6 +130,7 @@ jobs:
             linux/amd64
           context: ./frontend
           push: true
+          target: ${{steps.define_env.outputs.env}}
           tags: |
             ghcr.io/fbsabalete/web-${{ env.IMAGE_NAME }}:latest
             ghcr.io/fbsabalete/web-${{ env.IMAGE_NAME }}:${{steps.vars.outputs.shortSha}}
