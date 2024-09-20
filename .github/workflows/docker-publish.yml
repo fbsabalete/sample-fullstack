@@ -1,1 +1,154 @@
 
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+env:
+  IMAGE_NAME: ${{github.event.repository.name}}
+jobs:
+  # This pushes the image to GitHub Packages.
+  push-backend:
+    name: Build and push backend
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{steps.vars.outputs.shortSha}}
+      env: ${{steps.define_env.outputs.env}}
+    permissions:
+      packages: write
+      contents: read
+      #
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4 # v4.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build with Gradle
+        run: ./backend/gradlew build
+
+      - name: Extract branch name
+        shell: bash
+        run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+        id: extract_branch
+
+      - name: Define env to deploy
+        shell: bash
+        run: |
+          if [[ ${{steps.extract_branch.outputs.branch}} =~ main ]]; then
+            echo "env=prod" >> $GITHUB_OUTPUT
+          else
+            echo "env=snapshot" >> $GITHUB_OUTPUT
+          fi
+        id: define_env
+
+      - name: Set short git commit SHA
+        id: vars
+        run: |
+          calculatedSha=$(git rev-parse --short ${{ github.sha }})
+          echo "shortSha=${calculatedSha}-${{steps.extract_branch.outputs.branch}}" >> $GITHUB_OUTPUT
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
+        with:
+          registry: https://ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@ad44023a93711e3deb337508980b4b5e9bcdc5dc
+        with:
+          platforms: |
+            linux/arm64
+            linux/amd64
+          context: ./backend
+          push: true
+          tags: |
+            ghcr.io/fbsabalete/backend-${IMAGE_NAME}:latest
+            ghcr.io/fbsabalete/backend-${IMAGE_NAME}:${{steps.vars.outputs.shortSha}}
+  
+  
+
+  push-frontend:
+    name: Build and push frontend
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{steps.vars.outputs.shortSha}}
+      env: ${{steps.define_env.outputs.env}}
+    permissions:
+      packages: write
+      contents: read
+      #
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract branch name
+        shell: bash
+        run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+        id: extract_branch
+
+      - name: Define env to deploy
+        shell: bash
+        run: |
+          if [[ ${{steps.extract_branch.outputs.branch}} =~ main ]]; then
+            echo "env=prod" >> $GITHUB_OUTPUT
+          else
+            echo "env=snapshot" >> $GITHUB_OUTPUT
+          fi
+        id: define_env
+
+      - name: Set short git commit SHA
+        id: vars
+        run: |
+          calculatedSha=$(git rev-parse --short ${{ github.sha }})
+          echo "shortSha=${calculatedSha}-${{steps.extract_branch.outputs.branch}}" >> $GITHUB_OUTPUT
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
+        with:
+          registry: https://ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@ad44023a93711e3deb337508980b4b5e9bcdc5dc
+        with:
+          platforms: |
+            linux/arm64
+            linux/amd64
+          context: ./frontend
+          push: true
+          tags: |
+            ghcr.io/fbsabalete/web-${IMAGE_NAME}:latest
+            ghcr.io/fbsabalete/web-${IMAGE_NAME}:${{steps.vars.outputs.shortSha}}
+
+
+
+  deploy-ssh:
+    name: Connect to ssh host and execute docker deploy
+    runs-on: ubuntu-latest
+    needs:
+      - push-backend
+      - push-frontend
+    steps:
+      - name: Execute deploy script on remote host
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
+          script_stop: true
+          script: ~/pipelines/scripts/deploy.sh ${{github.event.repository.name}} ${{needs.push.outputs.image-tag}} ${{needs.push.outputs.env}}
