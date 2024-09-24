@@ -65,24 +65,9 @@ jobs:
 
       - name: Build with Gradle
         env:
-          GRADLE_OPTS: "--add-opens=java.base/java.util=ALL-UNNAMED
-            --add-opens=java.base/java.lang=ALL-UNNAMED
-            --add-opens=java.base/java.lang.invoke=ALL-UNNAMED
-            --add-opens=java.prefs/java.util.prefs=ALL-UNNAMED
-            --add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED
-            --add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED
-            --add-opens=java.base/java.nio.charset=ALL-UNNAMED
-            --add-opens=java.base/java.net=ALL-UNNAMED
-            --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED
-            -XX:MaxMetaspaceSize=384m
-            -XX:+HeapDumpOnOutOfMemoryError
-            -Xms256m
-            -Xmx512m
-            -Dfile.encoding=UTF-8
-            -Duser.country
-            -Duser.language=en
-            -Duser.variant"
-        run: |          
+
+        run: |
+          GRADLE_OPTS: "-XX:MaxMetaspaceSize=384m -XX:+HeapDumpOnOutOfMemoryError -Xms256m -Xmx512m"\ 
           ./gradlew build --no-daemon --debug
           mkdir -p build/dependency && (cd build/dependency; jar -xf ../libs/*.jar)
         working-directory: ./backend
