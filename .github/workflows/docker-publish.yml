@@ -65,8 +65,8 @@ jobs:
 
       - name: Build with Gradle
         env:
-          GRADLE_OPTS: "-Xmx4096m -XX:MaxPermSize=4096m -XX:+HeapDumpOnOutOfMemoryError"
-          JAVA_OPTS: "-Xmx4096m -XX:MaxPermSize=4096m -XX:+HeapDumpOnOutOfMemoryError"
+          GRADLE_OPTS: "-Xmx4096m -XX:MaxMetaspaceSize=4096m -XX:+HeapDumpOnOutOfMemoryError"
+          JAVA_OPTS: "-Xmx4096m -XX:MaxMetaspaceSize=4096m -XX:+HeapDumpOnOutOfMemoryError"
         run: |          
           ./gradlew build --no-daemon
           mkdir -p build/dependency && (cd build/dependency; jar -xf ../libs/*.jar)
