@@ -9,13 +9,40 @@ on:
 env:
   IMAGE_NAME: ${{github.event.repository.name}}
 jobs:
+  extract-vars:
+    name: Get build vars
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.tag.outputs.imageTag }}
+      env: ${{ steps.define_env.outputs.env }}
+      branch-name: ${{ steps.extract_branch.outputs.branch }}
+    steps:
+      - name: Extract branch name
+        shell: bash
+        run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+        id: extract_branch
+
+      - name: Define env to deploy
+        shell: bash
+        run: |
+          if [[ ${{steps.extract_branch.outputs.branch}} =~ main ]]; then
+            echo "env=prod" >> $GITHUB_OUTPUT
+          else
+            echo "env=snapshot" >> $GITHUB_OUTPUT
+          fi
+        id: define_env
+
+      - name: Get image tag from shortSHA
+        id: tag
+        run: |
+          calculatedSha=$(git rev-parse --short ${{ github.sha }})
+          echo "imageTag=${calculatedSha}-${{steps.extract_branch.outputs.branch}}" >> $GITHUB_OUTPUT
   # This pushes the image to GitHub Packages.
   push-backend:
     name: Build and push backend
     runs-on: ubuntu-latest
-    outputs:
-      image-tag: ${{steps.vars.outputs.shortSha}}
-      env: ${{steps.define_env.outputs.env}}
+    needs:
+      - extract-vars
     permissions:
       packages: write
       contents: read
@@ -33,30 +60,10 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
       - name: Build with Gradle
         run: ./gradlew build
         working-directory: ./backend
-
-      - name: Extract branch name
-        shell: bash
-        run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
-        id: extract_branch
-
-      - name: Define env to deploy
-        shell: bash
-        run: |
-          if [[ ${{steps.extract_branch.outputs.branch}} =~ main ]]; then
-            echo "env=prod" >> $GITHUB_OUTPUT
-          else
-            echo "env=snapshot" >> $GITHUB_OUTPUT
-          fi
-        id: define_env
-
-      - name: Set short git commit SHA
-        id: vars
-        run: |
-          calculatedSha=$(git rev-parse --short ${{ github.sha }})
-          echo "shortSha=${calculatedSha}-${{steps.extract_branch.outputs.branch}}" >> $GITHUB_OUTPUT
 
       - name: Log in to the Container registry
         uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
@@ -68,6 +75,9 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@ad44023a93711e3deb337508980b4b5e9bcdc5dc
         with:
+          provenance: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           platforms: |
             linux/arm64
             linux/amd64
@@ -75,16 +85,11 @@ jobs:
           push: true
           tags: |
             ghcr.io/fbsabalete/backend-${{ env.IMAGE_NAME }}:latest
-            ghcr.io/fbsabalete/backend-${{ env.IMAGE_NAME }}:${{steps.vars.outputs.shortSha}}
-  
-  
+            ghcr.io/fbsabalete/backend-${{ env.IMAGE_NAME }}:${{needs.extract-vars.outputs.image-tag}}
 
   push-frontend:
     name: Build and push frontend
     runs-on: ubuntu-latest
-    outputs:
-      image-tag: ${{steps.vars.outputs.shortSha}}
-      env: ${{steps.define_env.outputs.env}}
     permissions:
       packages: write
       contents: read
@@ -94,27 +99,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Extract branch name
-        shell: bash
-        run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
-        id: extract_branch
-
-      - name: Define env to deploy
-        shell: bash
-        run: |
-          if [[ ${{steps.extract_branch.outputs.branch}} =~ main ]]; then
-            echo "env=prod" >> $GITHUB_OUTPUT
-          else
-            echo "env=snapshot" >> $GITHUB_OUTPUT
-          fi
-        id: define_env
-
-      - name: Set short git commit SHA
-        id: vars
-        run: |
-          calculatedSha=$(git rev-parse --short ${{ github.sha }})
-          echo "shortSha=${calculatedSha}-${{steps.extract_branch.outputs.branch}}" >> $GITHUB_OUTPUT
-
       - name: Log in to the Container registry
         uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
         with:
@@ -125,15 +109,18 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@ad44023a93711e3deb337508980b4b5e9bcdc5dc
         with:
+          provenance: false
           platforms: |
             linux/arm64
             linux/amd64
           context: ./frontend
           push: true
-          target: ${{steps.define_env.outputs.env}}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          target: ${{needs.extract-vars.outputs.env}}
           tags: |
             ghcr.io/fbsabalete/web-${{ env.IMAGE_NAME }}:latest
-            ghcr.io/fbsabalete/web-${{ env.IMAGE_NAME }}:${{steps.vars.outputs.shortSha}}
+            ghcr.io/fbsabalete/web-${{ env.IMAGE_NAME }}:${{needs.extract-vars.outputs.image-tag}}
 
 
 
@@ -141,15 +128,16 @@ jobs:
     name: Connect to ssh host and execute docker deploy
     runs-on: ubuntu-latest
     needs:
+      - extract-vars
       - push-backend
       - push-frontend
     steps:
       - name: Execute deploy script on remote host
-        uses: appleboy/ssh-action@v0.1.7
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           port: 22
           script_stop: true
-          script: ~/pipelines/scripts/deploy.sh ${{github.event.repository.name}} ${{needs.push-frontend.outputs.image-tag}} ${{needs.push-frontend.outputs.env}}
+          script: ~/pipelines/scripts/deploy.sh ${{github.event.repository.name}} ${{needs.extract-vars.outputs.image-tag}} ${{needs.extract-vars.outputs.env}}
