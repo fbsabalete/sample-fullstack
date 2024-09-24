@@ -1,5 +1,9 @@
 package com.example.demo.controller
 
+import com.example.demo.PersonRepository
+import com.example.demo.exception.NotFoundException
+import com.example.demo.model.Person
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.web.bind.annotation.CrossOrigin
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -9,28 +13,18 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @RequestMapping("/people")
 @CrossOrigin(origins = ["*"])
-class PeopleController {
-
-    companion object {
-        val people: List<Person> = listOf(
-            Person(1, "Roneldson", 45, 1.7),
-            Person(2, "Robson", 30, 1.6),
-            Person(3, "Robertao", 60, 1.7)
-        )
-    }
+class PeopleController(
+    private val personRepository: PersonRepository
+) {
 
     @GetMapping
     fun getPeople() : List<Person> {
-        return people
+        return personRepository.findAll()
     }
 
     @GetMapping("/{id}")
-    fun getById(@PathVariable("id") id : Int) : Person? {
-        return people.first { it.id == id }
+    fun getById(@PathVariable("id") id : Int) : Person {
+        return personRepository.findByIdOrNull(id) ?: throw NotFoundException("Person not found");
     }
-
-}
-
-class Person(val id: Int, val name: String, val age: Int, val height: Double) {
 
 }
