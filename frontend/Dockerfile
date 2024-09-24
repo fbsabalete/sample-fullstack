@@ -1,8 +1,11 @@
 FROM node:20 AS base
 WORKDIR /app
+
 COPY package*.json ./
-COPY . .
+
 RUN ["npm", "ci"]
+
+COPY . .
 
 
 FROM base AS snapshot
