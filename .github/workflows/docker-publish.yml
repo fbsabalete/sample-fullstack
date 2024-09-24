@@ -64,8 +64,6 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build with Gradle
-        env:
-
         run: |
           GRADLE_OPTS: "-XX:MaxMetaspaceSize=384m -XX:+HeapDumpOnOutOfMemoryError -Xms256m -Xmx512m"\ 
           ./gradlew build --no-daemon --debug
