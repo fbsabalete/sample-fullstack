@@ -4,11 +4,15 @@ import {Person} from "@/pages/people";
 
 
 export default function PersonDetails() {
-    const [data, setData] = useState<Person|null>();
+    const [data, setData] = useState<Person | null>();
 
     const router = useRouter();
+    if (!router.isReady) {
+        <p>Loading</p>
+    }
+
     useEffect(() => {
-        fetch(`${process.env.NEXT_PUBLIC_BACKEND_BASE_URL!}/api/people/${router.query.id}`)
+        fetch(`${process.env.NEXT_PUBLIC_BACKEND_BASE_URL!}/api/people/${router.query?.id}`)
             .then((res) => res.json())
             .then((data: Person) => { // Specify the type here
                 setData(data);
