@@ -65,7 +65,7 @@ jobs:
 
       - name: Build with Gradle
         run: |
-          export GRADLE_OPTS: "-XX:MaxMetaspaceSize=384m -XX:+HeapDumpOnOutOfMemoryError -Xms256m -Xmx512m" 
+          export GRADLE_OPTS="-XX:MaxMetaspaceSize=384m -XX:+HeapDumpOnOutOfMemoryError -Xms256m -Xmx512m" 
           ./gradlew build --no-daemon --debug
           mkdir -p build/dependency && (cd build/dependency; jar -xf ../libs/*.jar)
         working-directory: ./backend
