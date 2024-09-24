@@ -64,11 +64,11 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build with Gradle
-        env:
-          GRADLE_OPTS: "-Xmx4096m -XX:MaxMetaspaceSize=4096m -XX:+HeapDumpOnOutOfMemoryError"
-          JAVA_OPTS: "-Xmx4096m -XX:MaxMetaspaceSize=4096m -XX:+HeapDumpOnOutOfMemoryError"
+#        env:
+#          GRADLE_OPTS: "-Xmx4096m -XX:MaxMetaspaceSize=4096m -XX:+HeapDumpOnOutOfMemoryError"
+#          JAVA_OPTS: "-Xmx4096m -XX:MaxMetaspaceSize=4096m -XX:+HeapDumpOnOutOfMemoryError"
         run: |          
-          ./gradlew build --no-daemon
+          ./gradlew build --no-daemon --debug
           mkdir -p build/dependency && (cd build/dependency; jar -xf ../libs/*.jar)
         working-directory: ./backend
 
