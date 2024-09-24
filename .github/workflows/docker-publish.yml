@@ -17,6 +17,7 @@ jobs:
       env: ${{ steps.define_env.outputs.env }}
       branch-name: ${{ steps.extract_branch.outputs.branch }}
     steps:
+      - uses: actions/checkout@v4
       - name: Extract branch name
         shell: bash
         run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
@@ -90,6 +91,8 @@ jobs:
   push-frontend:
     name: Build and push frontend
     runs-on: ubuntu-latest
+    needs:
+      - extract-vars
     permissions:
       packages: write
       contents: read
